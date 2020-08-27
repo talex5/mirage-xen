@@ -32,9 +32,9 @@
 #include <caml/fail.h>
 #include <caml/custom.h>
 
+#include <stdio.h>
 #undef GNTTAB_DEBUG
 #ifdef GNTTAB_DEBUG
-#include <stdio.h>
 #define DPRINTF(level, format, ...) \
     if (GNTTAB_DEBUG >= level) printf("%s(): " format, __func__, __VA_ARGS__)
 #else
@@ -207,6 +207,9 @@ out_unmap:
  */
 #define CAML_BA_IO_PAGE (CAML_BA_UINT8 | CAML_BA_C_LAYOUT | CAML_BA_EXTERNAL)
 
+/* XXX: just for testing! */
+static void *next_import_addr = (void *) 0x40000000;
+
 /*
  * external map_exn:
  *     unit -> Gntref.t -> domid -> bool -> (grant_handle * Io_page.t)
@@ -225,9 +228,9 @@ mirage_xen_gnttab_map(value v_unused_ctx, value v_ref, value v_domid,
     void *addr;
     int rc;
 
-    rc = posix_memalign(&addr, PAGE_SIZE, 1 * PAGE_SIZE);
-    if (rc != 0)
-        caml_raise_out_of_memory();
+    addr = next_import_addr;
+    next_import_addr += 1 * PAGE_SIZE;
+    printf("Map one page at %p\n", addr);
 
     v_mapping = alloc_mapping(1);
     gnttab_mapping_head_t *mapping = Mapping_val(v_mapping);
@@ -270,9 +273,9 @@ mirage_xen_gnttab_mapv(value v_unused_ctx, value v_array, value v_writable)
     void *addr;
     int rc;
 
-    rc = posix_memalign(&addr, PAGE_SIZE, count * PAGE_SIZE);
-    if (rc != 0)
-        caml_raise_out_of_memory();
+    addr = next_import_addr;
+    next_import_addr += count * PAGE_SIZE;
+    printf("Map %d pages at %p\n", count, addr);
 
     v_mapping = alloc_mapping(count);
     gnttab_mapping_head_t *mapping = Mapping_val(v_mapping);
@@ -317,7 +320,7 @@ mirage_xen_gnttab_unmap(value v_unused_ctx, value v_mapping)
     rc = gnttab_unmap(mapping);
     if (rc != 0)
         caml_failwith("mirage_xen_gnttab_unmap: failed");
-    free(mapping->start_addr);
+    // printf("mirage_xen_gnttab_unmap: SKIPPING free\n");
     mapping->start_addr = 0;
     mapping->count = 0;
     CAMLreturn(Val_unit);
